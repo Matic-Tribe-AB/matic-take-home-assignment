@@ -19,6 +19,10 @@ jobs:
         with:
           node-version: '20'
 
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
       # ── Read candidate name from metadata file ────────────────────────────────────
       - name: Read candidate metadata
         id: meta
@@ -37,10 +41,10 @@ jobs:
           echo "design_exists=$([ -f DESIGN.md ] && echo true || echo false)" >> $GITHUB_OUTPUT
           echo "ailog_exists=$([ -f AI_LOG.md ] && echo true || echo false)" >> $GITHUB_OUTPUT
 
-      # ── Install backend ───────────────────────────────────────────────────────
-      - name: Install backend dependencies
+      # ── Restore backend ───────────────────────────────────────────────────────
+      - name: Restore backend dependencies
         working-directory: backend
-        run: npm install
+        run: dotnet restore
         continue-on-error: true
 
       # ── Run candidate's own tests ───────────────────────────────────────────
@@ -48,39 +52,40 @@ jobs:
         id: tests
         working-directory: backend
         run: |
-          npm test 2>&1 | tee /tmp/test-output.txt || true
-          PASSED=$(grep -c -E "^(ok|passing|✓|PASS)" /tmp/test-output.txt 2>/dev/null || echo 0)
-          FAILED=$(grep -c -E "^(not ok|failing|✗|FAIL)" /tmp/test-output.txt 2>/dev/null || echo 0)
-          echo "passed=$PASSED" >> $GITHUB_OUTPUT
-          echo "failed=$FAILED" >> $GITHUB_OUTPUT
+          dotnet test 2>&1 | tee /tmp/test-output.txt || true
+          PASSED=$(grep -oP 'Passed:\s+\K\d+' /tmp/test-output.txt | awk '{sum+=$1} END {print sum+0}')
+          FAILED=$(grep -oP 'Failed:\s+\K\d+' /tmp/test-output.txt | awk '{sum+=$1} END {print sum+0}')
+          echo "passed=${PASSED:-0}" >> $GITHUB_OUTPUT
+          echo "failed=${FAILED:-0}" >> $GITHUB_OUTPUT
         continue-on-error: true
 
       # ── Start backend and test all API endpoints ────────────────────────────────
       - name: Test API endpoints
         id: api
         run: |
-          cd backend && npm start &
+          cd backend && dotnet run --project PostFeed.Api &
           SERVER_PID=$!
 
-          for i in $(seq 1 15); do
+          for i in $(seq 1 30); do
             if curl -sf http://localhost:3001/api/health > /dev/null 2>&1; then break; fi
             sleep 1
           done
 
           BASE="http://localhost:3001/api"
 
-          GET_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/posts" || echo 0)
-
-          POST_BODY=$(curl -s -X POST "$BASE/posts" \
-            -H "Content-Type: application/json" \
-            -d '{"title":"Assessment test","body":"Automated check"}' || echo '{}')
           POST_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE/posts" \
             -H "Content-Type: application/json" \
-            -d '{"title":"Assessment test 2","body":"Automated check"}' || echo 0)
+            -d '{"title":"Assessment test","body":"Automated check"}' || echo 0)
 
-          POST_ID=$(echo "$POST_BODY" | node -e "
+          GET_RESPONSE=$(curl -s "$BASE/posts" || echo '[]')
+          GET_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/posts" || echo 0)
+
+          POST_ID=$(echo "$GET_RESPONSE" | node -e "
             let d=''; process.stdin.on('data',c=>d+=c).on('end',()=>{
-              try{ console.log(JSON.parse(d).id||'') }catch(e){ console.log('') }
+              try{
+                const posts = JSON.parse(d);
+                console.log(Array.isArray(posts) && posts[0] ? posts[0].id || '' : '')
+              } catch(e){ console.log('') }
             })" || echo '')
 
           if [ -n "$POST_ID" ]; then
@@ -106,9 +111,9 @@ jobs:
       - name: Count code and words
         id: stats
         run: |
-          BE=$(find backend/src -name "*.js" -o -name "*.ts" 2>/dev/null | grep -v node_modules | xargs wc -l 2>/dev/null | tail -1 | awk '{print $1}' || echo 0)
+          BE=$(find backend -name "*.cs" 2>/dev/null | grep -v /obj/ | xargs wc -l 2>/dev/null | tail -1 | awk '{print $1}' || echo 0)
           FE=$(find frontend/src -name "*.jsx" -o -name "*.tsx" -o -name "*.js" -o -name "*.ts" 2>/dev/null | grep -v node_modules | xargs wc -l 2>/dev/null | tail -1 | awk '{print $1}' || echo 0)
-          TF=$(find . -name "*.test.*" -o -name "*.spec.*" 2>/dev/null | grep -v node_modules | wc -l || echo 0)
+          TF=$(find . \( -name "*.test.*" -o -name "*.spec.*" -o -name "*Tests.cs" -o -name "*Test.cs" \) 2>/dev/null | grep -v node_modules | grep -v /obj/ | wc -l || echo 0)
           DW=$([ -f DESIGN.md ] && wc -w < DESIGN.md || echo 0)
           AW=$([ -f AI_LOG.md ] && wc -w < AI_LOG.md || echo 0)
           echo "backend_lines=$BE"   >> $GITHUB_OUTPUT

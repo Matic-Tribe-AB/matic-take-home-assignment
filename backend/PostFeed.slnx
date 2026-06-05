@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="PostFeed.Api/PostFeed.Api.csproj" />
+  <Project Path="PostFeed.Tests/PostFeed.Tests.csproj" />
+</Solution>

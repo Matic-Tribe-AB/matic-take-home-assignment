@@ -21,14 +21,14 @@ This exercise has three parts. Complete them in order. All three parts matter �
 
 Implement the following using the starter scaffolding in this repo:
 
-**Backend (Node.js / Express)**
+**Backend (.NET 10 / ASP.NET Core)**
 
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/api/posts` | Return all posts, newest first |
 | `POST` | `/api/posts` | Create a post (`title`, `body`) |
-| `PATCH` | `/api/posts/:id` | Toggle `read` status on a post |
-| `DELETE` | `/api/posts/:id` | Delete a post |
+| `PATCH` | `/api/posts/{id}` | Toggle `read` status on a post |
+| `DELETE` | `/api/posts/{id}` | Delete a post |
 
 Persistence is your choice: in-memory, JSON file, or SQLite. State your choice in your design doc.
 
@@ -44,7 +44,7 @@ Persistence is your choice: in-memory, JSON file, or SQLite. State your choice i
 
 - Backend and frontend must run independently (separate ports, CORS handled)
 - At least one test — backend or frontend, your choice of framework
-- Code should run with `npm install && npm start` (or equivalent) in each folder
+- Backend must run with `dotnet run --project PostFeed.Api` from the `backend/` folder
 
 ---
 
@@ -85,9 +85,11 @@ There are no wrong answers here — we are evaluating your judgment and transpar
 ```
 matic-take-home-assignment/
 ├── backend/
-│   ├── src/
-│   │   └── app.js         # Express app entry point (starter)
-│   ├── package.json
+│   ├── PostFeed.Api/
+│   │   └── Program.cs     # ASP.NET Core entry point (starter)
+│   ├── PostFeed.Tests/
+│   │   └── HealthTests.cs # Integration test example
+│   ├── PostFeed.slnx
 │   └── README.md
 ├── frontend/
 │   ├── src/
@@ -118,8 +120,7 @@ cd matic-take-home-assignment
 
 ```bash
 cd backend
-npm install
-npm start
+dotnet run --project PostFeed.Api
 # Runs on http://localhost:3001
 ```
 
